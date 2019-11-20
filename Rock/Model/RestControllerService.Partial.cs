@@ -57,11 +57,16 @@ namespace Rock.Model
                     discoveredControllers.Add( controller );
                 }
 
+                // The API ID needs to include optional parameters like the default POST method's ID param (api/controller/{id})
+                // The route template includes the optional params, while apiDescription.ID does not
+                var path = apiDescription.Route.RouteTemplate.Replace( "{controller}", controller.Name );
+                var method = apiDescription.HttpMethod.Method;
+
                 controller.Actions.Add( new RestAction
                 {
-                    ApiId = apiDescription.ID,
-                    Method = apiDescription.HttpMethod.Method,
-                    Path = apiDescription.RelativePath
+                    ApiId = $"{method}{path}",
+                    Method = method,
+                    Path = path
                 } );
             }
 

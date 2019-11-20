@@ -19,6 +19,7 @@ using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.ServiceModel.Channels;
+using System.Web.Http;
 using System.Web.Http.Controllers;
 using System.Web.Http.Filters;
 
@@ -49,7 +50,17 @@ namespace Rock.Rest.Filters
             //// for example: ~/person/search?name={name}&includeHtml={includeHtml}&includeDetails={includeDetails}&includeBusinesses={includeBusinesses}
             //// is a different action method than ~/person/search?name={name}.
             //// Also exclude any ODataQueryOptions parameters (those don't end up as put of the apiId)
-            var routeQueryParams = actionContext.ActionArguments.Where( a => actionPath.IndexOf( "{" + a.Key + "}", StringComparison.OrdinalIgnoreCase ) < 0 && !( a.Value is System.Web.Http.OData.Query.ODataQueryOptions ) );
+            var methodInfo = ( ( ReflectedHttpActionDescriptor ) actionContext.Request.Properties["MS_HttpActionDescriptor"] ).MethodInfo;
+            var fromBodyParams = methodInfo.GetParameters()
+                .Where( p => p.CustomAttributes.Any( cad => cad.AttributeType == typeof( FromBodyAttribute ) ) )
+                .Select( p => p.Name );
+
+            // Get params that are not [FromBody], not Odata related, and not already included in the path
+            var routeQueryParams = actionContext.ActionArguments.Where( a =>
+                actionPath.IndexOf( "{" + a.Key + "}", StringComparison.OrdinalIgnoreCase ) < 0 &&
+                !( a.Value is System.Web.Http.OData.Query.ODataQueryOptions ) &&
+                !fromBodyParams.Any( fbp => fbp.Equals( a.Key, StringComparison.OrdinalIgnoreCase ) ) );
+
             if ( routeQueryParams.Any())
             {
                 var actionPathQueryString = routeQueryParams.Select( a => string.Format( "{0}={{{0}}}", a.Key ) ).ToList().AsDelimited( "&" );
