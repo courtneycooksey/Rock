@@ -50,7 +50,7 @@ namespace Rock.Rest.Filters
             //// for example: ~/person/search?name={name}&includeHtml={includeHtml}&includeDetails={includeDetails}&includeBusinesses={includeBusinesses}
             //// is a different action method than ~/person/search?name={name}.
             //// Also exclude any ODataQueryOptions parameters (those don't end up as put of the apiId)
-            var methodInfo = ( ( ReflectedHttpActionDescriptor ) actionContext.Request.Properties["MS_HttpActionDescriptor"] ).MethodInfo;
+            var methodInfo = ( ( ReflectedHttpActionDescriptor ) actionContext.ActionDescriptor ).MethodInfo;
             var fromBodyParams = methodInfo.GetParameters()
                 .Where( p => p.CustomAttributes.Any( cad => cad.AttributeType == typeof( FromBodyAttribute ) ) )
                 .Select( p => p.Name );
