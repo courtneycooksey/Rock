@@ -23,6 +23,8 @@ using Rock;
 using Rock.Web.Cache;
 using Rock.Model;
 using Rock.Web.UI;
+using System.Reflection;
+using Rock.Data;
 
 namespace RockWeb.Blocks.Cms
 {
@@ -64,12 +66,11 @@ namespace RockWeb.Blocks.Cms
         protected void PopulateCacheTypes()
         {
             ddlCacheTypes.Items.Clear();
-            ddlCacheTypes.Items.Add( new ListItem( "All Cached Items", "all" ) );
+            var entityCacheTypes = RockCache.GetAllModelCacheTypes();
 
-            var cacheStats = RockCache.GetAllStatistics();
-            foreach ( CacheItemStatistics cacheItemStat in cacheStats.OrderBy( s => s.Name ) )
+            foreach ( var entityCacheType in entityCacheTypes.OrderBy( s => s.Name ) )
             {
-                ddlCacheTypes.Items.Add( new ListItem( cacheItemStat.Name, cacheItemStat.Name ) );
+                ddlCacheTypes.Items.Add( new ListItem( entityCacheType.Name, entityCacheType.Name ) );
             }
         }
 
@@ -84,10 +85,41 @@ namespace RockWeb.Blocks.Cms
         /// <param name="e">The <see cref="EventArgs"/> instance containing the event data.</param>
         protected void btnRefresh_Click( object sender, EventArgs e )
         {
-            var cacheType = ddlCacheTypes.SelectedValue;
-            var entityId = rtbEntityId.Text.AsIntegerOrNull();
+            var cacheTypeName = ddlCacheTypes.SelectedValue;
+            var modelTypeName = cacheTypeName.Replace( "Cache", string.Empty );
+            var cacheType = Type.GetType( string.Format( "Rock.Web.Cache.{0},Rock", cacheTypeName ) );
+            var modelType = Type.GetType( string.Format( "Rock.Model.{0},Rock", modelTypeName ) );
 
-            if (entityId)
+            var entityId = rtbEntityId.Text.AsInteger();
+
+            var cacheType = typeof(EntityCache<,>).MakeGenericType(  );
+            genMyClass.InvokeMember( "DoX", BindingFlags.Public | BindingFlags.Static, null, null, null );
+
+            /*
+            // If the entity id is null or cannot be found, then load the first and show a message
+            var cacheTypeName = selectedCacheType;
+            var cacheType = Type.GetType( string.Format( "Rock.Web.Cache.{0},Rock", cacheTypeName ) );
+            var modelCacheType = cache
+
+
+            var method = cacheType.GetMethod( "All", BindingFlags.Public | BindingFlags.Static ) ??
+                cacheType.BaseType.GetMethod( "All", BindingFlags.Public | BindingFlags.Static );
+            var result = method.Invoke( null, null );
+            */
+            /*
+            var cachedItem = result as ItemCache;
+
+            if (cachedItem == null)
+            {
+                cachedItem = CampusCache.All().FirstOrDefault();
+                nbNotification.Visible = true;
+            }
+            else
+            {
+                nbNotification.Visible = false;
+            }
+
+            preResult.InnerText = cachedItem.ToJson( Newtonsoft.Json.Formatting.Indented );*/
         }
 
         #endregion Events
