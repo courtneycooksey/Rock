@@ -25,6 +25,8 @@ using Rock.Model;
 using Rock.Web.UI;
 using System.Reflection;
 using Rock.Data;
+using System.Collections.Generic;
+using Rock.Web.UI.Controls;
 
 namespace RockWeb.Blocks.Cms
 {
@@ -85,43 +87,78 @@ namespace RockWeb.Blocks.Cms
         /// <param name="e">The <see cref="EventArgs"/> instance containing the event data.</param>
         protected void btnRefresh_Click( object sender, EventArgs e )
         {
+            ClearNotification();
+
             var cacheTypeName = ddlCacheTypes.SelectedValue;
             var modelTypeName = cacheTypeName.Replace( "Cache", string.Empty );
             var cacheType = Type.GetType( string.Format( "Rock.Web.Cache.{0},Rock", cacheTypeName ) );
             var modelType = Type.GetType( string.Format( "Rock.Model.{0},Rock", modelTypeName ) );
+            var entityCacheType = typeof( EntityCache<,> ).MakeGenericType( cacheType, modelType );
 
-            var entityId = rtbEntityId.Text.AsInteger();
+            var entityId = rtbEntityId.Text.AsIntegerOrNull();
+            var allCachedItems = entityCacheType.InvokeMember( "All", BindingFlags.InvokeMethod, null, null, null );
+            var listAllCachedItems = allCachedItems as List<object>;
+            object cachedItemToDisplay = null;
 
-            var cacheType = typeof(EntityCache<,>).MakeGenericType(  );
-            genMyClass.InvokeMember( "DoX", BindingFlags.Public | BindingFlags.Static, null, null, null );
+            var idProperty = cacheType.GetProperty( "Id" );
 
-            /*
-            // If the entity id is null or cannot be found, then load the first and show a message
-            var cacheTypeName = selectedCacheType;
-            var cacheType = Type.GetType( string.Format( "Rock.Web.Cache.{0},Rock", cacheTypeName ) );
-            var modelCacheType = cache
-
-
-            var method = cacheType.GetMethod( "All", BindingFlags.Public | BindingFlags.Static ) ??
-                cacheType.BaseType.GetMethod( "All", BindingFlags.Public | BindingFlags.Static );
-            var result = method.Invoke( null, null );
-            */
-            /*
-            var cachedItem = result as ItemCache;
-
-            if (cachedItem == null)
+            foreach (var cachedItem in listAllCachedItems )
             {
-                cachedItem = CampusCache.All().FirstOrDefault();
-                nbNotification.Visible = true;
-            }
-            else
-            {
-                nbNotification.Visible = false;
+                if( cachedItemToDisplay == null )
+                {
+                    cachedItemToDisplay = cachedItem;
+                }
+                else if ( entityId.HasValue && entityId.Value == ( int ) idProperty.GetValue( cachedItem ) )
+                {
+                    cachedItemToDisplay = cachedItem;
+                    break;
+                }
             }
 
-            preResult.InnerText = cachedItem.ToJson( Newtonsoft.Json.Formatting.Indented );*/
+            if ( cachedItemToDisplay == null )
+            {
+                ShowError( string.Format("The {0} with ID {1} was not found", modelType.Name, entityId ));
+            }
+
+            preResult.InnerText = cachedItemToDisplay.ToJson( Newtonsoft.Json.Formatting.Indented );
         }
 
         #endregion Events
+
+        #region Notifications
+
+        /// <summary>
+        /// Clears the notification.
+        /// </summary>
+        private void ClearNotification()
+        {
+            nbNotification.Visible = false;
+        }
+
+        /// <summary>
+        /// Shows the information.
+        /// </summary>
+        /// <param name="text">The text.</param>
+        private void ShowInfo( string text )
+        {
+            nbNotification.Visible = true;
+            nbNotification.Title = "Info";
+            nbNotification.Text = text;
+            nbNotification.NotificationBoxType = NotificationBoxType.Info;
+        }
+
+        /// <summary>
+        /// Shows the error.
+        /// </summary>
+        /// <param name="text">The text.</param>
+        private void ShowError( string text )
+        {
+            nbNotification.Visible = true;
+            nbNotification.Title = "Error";
+            nbNotification.Text = text;
+            nbNotification.NotificationBoxType = NotificationBoxType.Warning;
+        }
+
+        #endregion
     }
 }
