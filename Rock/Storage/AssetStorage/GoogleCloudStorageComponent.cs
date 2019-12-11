@@ -22,10 +22,12 @@ using System.IO;
 using System.Linq;
 using System.Net;
 using Google.Apis.Auth.OAuth2;
+using Google.Cloud.Storage.V1;
 using Rock.Attribute;
 using Rock.Model;
 using Rock.Security;
-using Rock.Storage.AssetStorage.ApiClient;
+
+using GoogleObject = Google.Apis.Storage.v1.Data.Object;
 
 namespace Rock.Storage.AssetStorage
 {
@@ -267,7 +269,8 @@ namespace Rock.Storage.AssetStorage
                 else
                 {
                     // To delete a folder from Google, just delete everything inside
-                    objectsToDelete.AddRange( client.ListObjects( bucketName, asset.Key, string.Empty ) );
+                    var objectsInDirectory = GetObjectsFromGoogle( assetStorageProvider, asset.Key, null, true );
+                    objectsToDelete.AddRange( objectsInDirectory );
                 }
 
                 foreach ( var objectToDelete in objectsToDelete )
@@ -456,10 +459,11 @@ namespace Rock.Storage.AssetStorage
         /// </summary>
         /// <param name="assetStorageProvider">The asset storage provider.</param>
         /// <returns></returns>
-        private GoogleClient GetStorageClient( AssetStorageProvider assetStorageProvider )
+        private StorageClient GetStorageClient( AssetStorageProvider assetStorageProvider )
         {
             var accountKeyJson = GetServiceAccountKeyJson( assetStorageProvider );
-            var storageClient = new GoogleClient( accountKeyJson );
+            var googleCredential = GoogleCredential.FromJson( accountKeyJson );
+            var storageClient = StorageClient.Create( googleCredential );
             return storageClient;
         }
 
@@ -539,17 +543,23 @@ namespace Rock.Storage.AssetStorage
         /// <param name="assetTypeToList">The asset type to list.</param>
         /// <param name="allowRecursion">if set to <c>true</c> [allow recursion].</param>
         /// <returns></returns>
-        private List<Asset> GetAssetsFromGoogle( AssetStorageProvider assetStorageProvider, string directory, AssetType? assetTypeToList, bool allowRecursion )
+        private List<GoogleObject> GetObjectsFromGoogle( AssetStorageProvider assetStorageProvider, string directory, AssetType? assetTypeToList, bool allowRecursion )
         {
+            var bucketName = GetBucketName( assetStorageProvider );
+            var delimiter = assetTypeToList == AssetType.File ? "/" : string.Empty;
+
+            // The initial depth is within the "directory", which means it's the depth of the "directory" plus 1
+            var initialDepth = GetKeyDepth( directory ) + 1;
+
             using ( var client = GetStorageClient( assetStorageProvider ) )
             {
-                var bucketName = GetBucketName( assetStorageProvider );
-
-                // The initial depth is within the "directory", which means it's the depth of the "directory" plus 1
-                var initialDepth = GetKeyDepth( directory ) + 1;
-
                 // Get the objects from Google and transform them into assets
-                var objects = client.ListObjects( bucketName, directory, assetTypeToList == AssetType.File ? "/" : string.Empty );
+                var response = client.ListObjects( bucketName, directory, new ListObjectsOptions
+                {
+                    Delimiter = delimiter
+                } );
+
+                var objects = response.ToList();
 
                 if ( assetTypeToList == AssetType.Folder )
                 {
@@ -566,8 +576,22 @@ namespace Rock.Storage.AssetStorage
                 directory = directory.EndsWith( "/" ) ? directory : $"{directory}/";
                 objects.RemoveAll( o => o.Name == directory );
 
-                return objects.Select( o => TranslateGoogleObjectToRockAsset( assetStorageProvider, o ) ).ToList();
+                return objects;
             }
+        }
+
+        /// <summary>
+        /// Gets the assets from Google.
+        /// </summary>
+        /// <param name="assetStorageProvider">The asset storage provider.</param>
+        /// <param name="directory">The directory.</param>
+        /// <param name="assetTypeToList">The asset type to list.</param>
+        /// <param name="allowRecursion">if set to <c>true</c> [allow recursion].</param>
+        /// <returns></returns>
+        private List<Asset> GetAssetsFromGoogle( AssetStorageProvider assetStorageProvider, string directory, AssetType? assetTypeToList, bool allowRecursion )
+        {
+            var objects = GetObjectsFromGoogle( assetStorageProvider, directory, assetTypeToList, allowRecursion );
+            return objects.Select( o => TranslateGoogleObjectToRockAsset( assetStorageProvider, o ) ).ToList();
         }
 
         /// <summary>
